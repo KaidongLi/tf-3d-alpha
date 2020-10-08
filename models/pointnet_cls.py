@@ -81,30 +81,62 @@ def get_model(point_cloud, is_training, bn_decay=None):
 
     end_points['pts_2d'] = pts_2d
 
-    # decoder
-    net = tf_util.conv2d(pts_2d, 1024, [1,1],
-                         padding='VALID', stride=[1,1],
-                         bn=True, is_training=is_training,
-                         scope='conv7', bn_decay=bn_decay)
-    net = tf_util.conv2d(net, 128, [1,1],
-                         padding='VALID', stride=[1,1],
-                         bn=True, is_training=is_training,
-                         scope='conv8', bn_decay=bn_decay)
-    net = tf_util.conv2d(net, 64, [1,1],
-                         padding='VALID', stride=[1,1],
-                         bn=True, is_training=is_training,
-                         scope='conv9', bn_decay=bn_decay)
-    net = tf_util.conv2d(net, 64, [1,1],
-                         padding='VALID', stride=[1,1],
-                         bn=True, is_training=is_training,
-                         scope='conv10', bn_decay=bn_decay)
-    net = tf_util.conv2d(net, 3, [1,1],
-                         padding='VALID', stride=[1,1],
-                         bn=True, is_training=is_training,
-                         scope='conv11', bn_decay=bn_decay)
-    net = tf.squeeze(net, axis=[2])
+    # # decoder
+    # net = tf_util.conv2d(pts_2d, 1024, [1,1],
+    #                      padding='VALID', stride=[1,1],
+    #                      bn=True, is_training=is_training,
+    #                      scope='conv7', bn_decay=bn_decay)
+    # net = tf_util.conv2d(net, 128, [1,1],
+    #                      padding='VALID', stride=[1,1],
+    #                      bn=True, is_training=is_training,
+    #                      scope='conv8', bn_decay=bn_decay)
+    # net = tf_util.conv2d(net, 64, [1,1],
+    #                      padding='VALID', stride=[1,1],
+    #                      bn=True, is_training=is_training,
+    #                      scope='conv9', bn_decay=bn_decay)
 
 
+    # # mirror transform
+    # with tf.variable_scope('transform_net3') as sc:
+    #     transform = feature_transform_net(net, is_training, bn_decay, K=64)
+    # end_points['transform2'] = transform
+    # net_transformed = tf.matmul(tf.squeeze(net, axis=[2]), transform)
+    # net_transformed = tf.expand_dims(net_transformed, [2])
+
+    # net = tf_util.conv2d(net_transformed, 64, [1,1],
+    #                      padding='VALID', stride=[1,1],
+    #                      bn=True, is_training=is_training,
+    #                      scope='conv10', bn_decay=bn_decay)
+
+    # # net = tf_util.conv2d(net, 64, [1,1],
+    # #                      padding='VALID', stride=[1,1],
+    # #                      bn=True, is_training=is_training,
+    # #                      scope='conv10', bn_decay=bn_decay)
+
+
+    # net = tf_util.conv2d(net, 3, [1,1],
+    #                      padding='VALID', stride=[1,1],
+    #                      bn=True, is_training=is_training,
+    #                      scope='conv11', bn_decay=bn_decay)
+    # net = tf.squeeze(net, axis=[2])
+
+    # # fully connect decoder
+    net = tf.reshape(pts_2d, [batch_size, -1])
+    net = tf_util.fully_connected(net, 2048, bn=True, is_training=is_training,
+                                  scope='fc1', bn_decay=bn_decay)
+    net = tf_util.fully_connected(net, 1024, bn=True, is_training=is_training,
+                                  scope='fc2', bn_decay=bn_decay)
+    net = tf_util.fully_connected(net, num_point*3, activation_fn=None, scope='fc3')
+    net = tf.reshape(net, [batch_size, num_point, 3])
+
+
+
+
+
+
+
+
+    # # original
     # # Symmetric function: max pooling
     # net = tf_util.max_pool2d(net, [num_point,1],
     #                          padding='VALID', scope='maxpool')
