@@ -137,13 +137,28 @@ def eval_one_epoch(sess, ops, num_votes=1, topk=1):
                 import pdb
                 # pdb.set_trace()
                 import matplotlib.pyplot as plt
+                pt_2d_val = np.expand_dims(pt_2d_val, 2)
                 fig = plt.figure()
                 ax = fig.add_subplot()
                 ax.scatter(pt_2d_val[0, :, 0, 0], pt_2d_val[0, :, 0, 1], s=2 )
                 ax.set_xlabel('x')
                 ax.set_ylabel('y')
-                plt.savefig(os.path.join(DUMP_DIR, '2d_pt_lr-1_{}_{}.png'.format( SHAPE_NAMES[current_label[start_idx]], start_idx )))
+                plt.savefig(os.path.join(DUMP_DIR, '2d_pt_fully_no_trans_{}_{}.png'.format( SHAPE_NAMES[current_label[start_idx]], start_idx )))
                 
+
+                # from mpl_toolkits.mplot3d import Axes3D
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                ax.scatter(rotated_data[0, :, 0], rotated_data[0, :, 1], rotated_data[0, :, 2], s=5)
+                ax.view_init(85, 45)
+                plt.savefig(os.path.join(DUMP_DIR, '3d_pt_{}_{}.png'.format( SHAPE_NAMES[current_label[start_idx]], start_idx )))
+                
+
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                ax.scatter(pred_val[0, :, 0], pred_val[0, :, 1], pred_val[0, :, 2], s=5)
+                ax.view_init(85, 45)
+                plt.savefig(os.path.join(DUMP_DIR, '3d_pt_{}_{}_recon.png'.format( SHAPE_NAMES[current_label[start_idx]], start_idx )))
                 pdb.set_trace()
                 
                 
