@@ -133,9 +133,9 @@ def get_loss(pred, label, end_points, reg_weight=0.001):
 
 
 
-    # # test, kaidong
-    # import pdb
-    # pdb.set_trace()
+    # test, kaidong
+    import pdb
+    pdb.set_trace()
 
 
 
@@ -143,7 +143,7 @@ def get_loss(pred, label, end_points, reg_weight=0.001):
 
 
 
-
+    pred = pred[:, 80:, :]
 
 
 

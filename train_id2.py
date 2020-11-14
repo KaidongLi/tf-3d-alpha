@@ -16,7 +16,7 @@ import tf_util
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
-parser.add_argument('--model', default='pointnet_cls', help='Model name: pointnet_cls or pointnet_cls_basic [default: pointnet_cls]')
+parser.add_argument('--model', default='convert_from_grid', help='Model name: pointnet_cls or pointnet_cls_basic [default: pointnet_cls]')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--num_point', type=int, default=1024, help='Point Number [256/512/1024/2048] [default: 1024]')
 parser.add_argument('--max_epoch', type=int, default=250, help='Epoch to run [default: 250]')
@@ -26,6 +26,9 @@ parser.add_argument('--momentum', type=float, default=0.9, help='Initial learnin
 parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
 parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
 parser.add_argument('--decay_rate', type=float, default=0.7, help='Decay rate for lr decay [default: 0.8]')
+
+parser.add_argument('--grid_size', type=int, default=20, help='Epoch to run [default: 250]')
+parser.add_argument('--num_mlp', type=int, default=250, help='Epoch to run [default: 250]')
 FLAGS = parser.parse_args()
 
 
@@ -38,6 +41,9 @@ MOMENTUM = FLAGS.momentum
 OPTIMIZER = FLAGS.optimizer
 DECAY_STEP = FLAGS.decay_step
 DECAY_RATE = FLAGS.decay_rate
+GRID_SIZE = FLAGS.grid_size
+NUM_MLP = FLAGS.num_mlp
+# // all points-> 3d grid, concatenate all 3d pts
 
 MODEL = importlib.import_module(FLAGS.model) # import network module
 MODEL_FILE = os.path.join(BASE_DIR, 'models', FLAGS.model+'.py')
@@ -56,7 +62,6 @@ BN_DECAY_DECAY_RATE = 0.5
 BN_DECAY_DECAY_STEP = float(DECAY_STEP)
 BN_DECAY_CLIP = 0.99
 
-GRID_SIZE = 20
 
 HOSTNAME = socket.gethostname()
 
@@ -95,8 +100,9 @@ def get_bn_decay(batch):
 def train():
     with tf.Graph().as_default():
         with tf.device('/gpu:'+str(GPU_INDEX)):
-            pointclouds_pl, labels_pl = MODEL.placeholder_inputs(BATCH_SIZE, NUM_POINT)
+            grid_pl, pointclouds_pl = MODEL.placeholder_inputs(BATCH_SIZE, GRID_SIZE, NUM_POINT)
             is_training_pl = tf.placeholder(tf.bool, shape=())
+            start_end_index_pl = tf.placeholder(tf.int8, shape=(2))
             print(is_training_pl)
             
             # Note the global_step=batch parameter to minimize. 
@@ -106,7 +112,7 @@ def train():
             tf.summary.scalar('bn_decay', bn_decay)
 
             # Get model and loss 
-            pred, end_points = MODEL.get_model(pointclouds_pl, is_training_pl, bn_decay=bn_decay)
+            pred, end_points = MODEL.get_model(NUM_MLP, start_end_index_pl, grid_pl, pointclouds_pl, is_training_pl, bn_decay=bn_decay)
             # loss, _ = MODEL.get_loss(pred, labels_pl, end_points)
             loss, _ = MODEL.get_loss(pred, pointclouds_pl, end_points)
             tf.summary.scalar('loss', loss)
@@ -155,7 +161,8 @@ def train():
                'loss': loss,
                'train_op': train_op,
                'merged': merged,
-               'step': batch}
+               'step': batch,
+               'start_end': start_end_index_pl }
 
         for epoch in range(MAX_EPOCH):
             log_string('**** EPOCH %03d ****' % (epoch))
@@ -183,13 +190,13 @@ def train_one_epoch(sess, ops, train_writer):
         log_string('----' + str(fn) + '-----')
         current_data, current_label = provider.loadDataFile(TRAIN_FILES[train_file_idxs[fn]])
         current_data = current_data[:,0:NUM_POINT,:]
-        current_data, current_label, _ = provider.shuffle_data(current_data, np.squeeze(current_label))            
+        # current_data, current_label, _ = provider.shuffle_data(current_data, np.squeeze(current_label))            
         current_label = np.squeeze(current_label)
         
         file_size = current_data.shape[0]
         num_batches = file_size // BATCH_SIZE
         
-        total_correct = 0
+        # total_correct = 0
         total_seen = 0
         loss_sum = 0
        
@@ -198,11 +205,12 @@ def train_one_epoch(sess, ops, train_writer):
             end_idx = (batch_idx+1) * BATCH_SIZE
             
             # Augment batched point clouds by rotation and jittering
-            rotated_data = provider.rotate_point_cloud(current_data[start_idx:end_idx, :, :])
-            jittered_data = provider.jitter_point_cloud(rotated_data)
-            feed_dict = {ops['pointclouds_pl']: jittered_data,
+            # rotated_data = provider.rotate_point_cloud(current_data[start_idx:end_idx, :, :])
+            # jittered_data = provider.jitter_point_cloud(rotated_data)
+            feed_dict = {ops['pointclouds_pl']: current_data[start_idx:end_idx, :, :],
                          ops['labels_pl']: current_label[start_idx:end_idx],
-                         ops['is_training_pl']: is_training,}
+                         ops['is_training_pl']: is_training,
+                         ops['start_end']: tf.constant([start_idx, end_idx]), }
             summary, step, _, loss_val, pred_val = sess.run([ops['merged'], ops['step'],
                 ops['train_op'], ops['loss'], ops['pred']], feed_dict=feed_dict)
             train_writer.add_summary(summary, step)
